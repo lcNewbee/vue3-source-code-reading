@@ -150,9 +150,13 @@ export function track(target: object, type: TrackOpTypes, key: unknown) {
   if (!dep) {
     depsMap.set(key, (dep = new Set()))
   }
+  /**
+   * targetMap的属性结构和target还是很相似的，只不过健值key对应的不再是值，
+   * 而是依赖集合，并且只是一层结构
+   */
   if (!dep.has(activeEffect)) {
-    dep.add(activeEffect)
-    activeEffect.deps.push(dep)
+    dep.add(activeEffect) // 将当前effect加入当前key的依赖集合
+    activeEffect.deps.push(dep) // 同时将当前集合也加入了effect的deps数组
     if (__DEV__ && activeEffect.options.onTrack) {
       activeEffect.options.onTrack({
         effect: activeEffect,

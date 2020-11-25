@@ -71,6 +71,7 @@ const arrayInstrumentations: Record<string, Function> = {}
 
 function createGetter(isReadonly = false, shallow = false) {
   return function get(target: Target, key: string | symbol, receiver: object) {
+    // 处理三个特殊的键名'__v_isReactive','__v_isReadonly','__v_raw'
     if (key === ReactiveFlags.IS_REACTIVE) {
       return !isReadonly
     } else if (key === ReactiveFlags.IS_READONLY) {
@@ -84,6 +85,8 @@ function createGetter(isReadonly = false, shallow = false) {
 
     const targetIsArray = isArray(target)
     if (targetIsArray && hasOwn(arrayInstrumentations, key)) {
+      // 劫持了数组方法：1. 'includes', 'indexOf', 'lastIndexOf'；2. 'push', 'pop', 'shift', 'unshift', 'splice'
+      // 调用数组方法，也就是对数组方法的获取，直接返回方法就行，不需要对方法做追踪处理（但是这些方法调用时会追踪数据变化）
       return Reflect.get(arrayInstrumentations, key, receiver)
     }
 
@@ -94,10 +97,12 @@ function createGetter(isReadonly = false, shallow = false) {
         ? builtInSymbols.has(key as symbol)
         : key === `__proto__` || key === `__v_isRef`
     ) {
+      // 内置symbol或者__proto__,__v_isRef，直接返回，不需要追踪这些数据变化
       return res
     }
 
     if (!isReadonly) {
+      // 追踪key值变化
       track(target, TrackOpTypes.GET, key)
     }
 
@@ -115,6 +120,7 @@ function createGetter(isReadonly = false, shallow = false) {
       // Convert returned value into a proxy as well. we do the isObject check
       // here to avoid invalid value warning. Also need to lazy access readonly
       // and reactive here to avoid circular dependency.
+      // 只有获取下层属性的时候，才会将子属性变成响应式的，而不是无脑递归
       return isReadonly ? readonly(res) : reactive(res)
     }
 
@@ -146,7 +152,8 @@ function createSetter(shallow = false) {
     const hadKey =
       isArray(target) && isIntegerKey(key)
         ? Number(key) < target.length
-        : hasOwn(target, key)
+        : // 可能是length等属性
+          hasOwn(target, key)
     const result = Reflect.set(target, key, value, receiver)
     // don't trigger if target is something up in the prototype chain of original
     if (target === toRaw(receiver)) {
@@ -183,6 +190,7 @@ function ownKeys(target: object): (string | number | symbol)[] {
   return Reflect.ownKeys(target)
 }
 
+// 用于Object，Array的劫持
 export const mutableHandlers: ProxyHandler<object> = {
   get,
   set,

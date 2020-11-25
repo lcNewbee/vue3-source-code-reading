@@ -560,6 +560,7 @@ function setupStatefulComponent(
   const { setup } = Component
   if (setup) {
     const setupContext = (instance.setupContext =
+      // setup有传入参数
       setup.length > 1 ? createSetupContext(instance) : null)
 
     currentInstance = instance
@@ -568,6 +569,10 @@ function setupStatefulComponent(
       setup,
       instance,
       ErrorCodes.SETUP_FUNCTION,
+      // 这个数组时setup的参数，所以setup第一个参数是组件实例的属性，第二个参数是包含下面属性的对象
+      // attrs: instance.attrs,
+      // slots: instance.slots,
+      // emit: instance.emit
       [__DEV__ ? shallowReadonly(instance.props) : instance.props, setupContext]
     )
     resetTracking()
@@ -604,6 +609,7 @@ export function handleSetupResult(
 ) {
   if (isFunction(setupResult)) {
     // setup returned an inline render function
+    // setup可以返回一个函数，那么该函数就会被当做实例的渲染函数
     instance.render = setupResult as InternalRenderFunction
   } else if (isObject(setupResult)) {
     if (__DEV__ && isVNode(setupResult)) {

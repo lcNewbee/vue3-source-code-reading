@@ -14,7 +14,8 @@ module.exports = {
       { varsIgnorePattern: '.*', args: 'none' }
     ],
     // most of the codebase are expected to be env agnostic
-    'no-restricted-globals': ['error', ...DOMGlobals, ...NodeGlobals],
+    // 'no-restricted-globals': ['error', ...DOMGlobals, ...NodeGlobals],
+    'no-restricted-globals': 0,
     // since we target ES2015 for baseline support, we need to forbid object
     // rest spread usage (both assign and destructure)
     'no-restricted-syntax': [

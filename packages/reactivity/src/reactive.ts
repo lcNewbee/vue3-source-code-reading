@@ -52,7 +52,7 @@ function targetTypeMap(rawType: string) {
 
 function getTargetType(value: Target) {
   return value[ReactiveFlags.SKIP] || !Object.isExtensible(value)
-    ? TargetType.INVALID
+    ? TargetType.INVALID // 有skip标志，或者不可扩展
     : targetTypeMap(toRawType(value))
 }
 
@@ -90,8 +90,8 @@ export function reactive(target: object) {
   return createReactiveObject(
     target,
     false,
-    mutableHandlers,
-    mutableCollectionHandlers
+    mutableHandlers, // Object，Array的代理配置
+    mutableCollectionHandlers // Map,Set,WeakMap,WeakSet的代理配置
   )
 }
 
@@ -178,6 +178,7 @@ function createReactiveObject(
   // target is already a Proxy, return it.
   // exception: calling readonly() on a reactive object
   if (
+    // TODO：暂时还不懂这里为什么这样处理，raw和is_reactive代表啥意思？
     target[ReactiveFlags.RAW] &&
     !(isReadonly && target[ReactiveFlags.IS_REACTIVE])
   ) {
@@ -187,18 +188,23 @@ function createReactiveObject(
   const proxyMap = isReadonly ? readonlyMap : reactiveMap
   const existingProxy = proxyMap.get(target)
   if (existingProxy) {
+    // 已经存在代理对象，则直接返回
     return existingProxy
   }
   // only a whitelist of value types can be observed.
   const targetType = getTargetType(target)
   if (targetType === TargetType.INVALID) {
+    // 有skip标志不需要变为响应式或者类型不支持，直接返回
     return target
   }
   const proxy = new Proxy(
     target,
+    // 针对不同的数据类型有不同的代理配置
+    // Map,Set,WeakMap,WeakSet用collectionHandlers
+    // Object和Array使用baseHandlers
     targetType === TargetType.COLLECTION ? collectionHandlers : baseHandlers
   )
-  proxyMap.set(target, proxy)
+  proxyMap.set(target, proxy) // 缓存
   return proxy
 }
 

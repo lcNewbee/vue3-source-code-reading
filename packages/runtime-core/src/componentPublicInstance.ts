@@ -262,7 +262,9 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     if (key[0] !== '$') {
       const n = accessCache![key]
       if (n !== undefined) {
+        // 已经被访问过一次，并且通过accessCache记录了key的类型，所以可以直接通过类型找到对象并取值
         switch (n) {
+          // case的顺序暗含了属性的查找优先级
           case AccessTypes.SETUP:
             return setupState[key]
           case AccessTypes.DATA:
@@ -291,10 +293,12 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
         accessCache![key] = AccessTypes.CONTEXT
         return ctx[key]
       } else if (!__FEATURE_OPTIONS_API__ || !isInBeforeCreate) {
+        // 如果所有的地方都没有，则不返回，继续执行下面的逻辑
         accessCache![key] = AccessTypes.OTHER
       }
     }
 
+    // 以$开头属性的值
     const publicGetter = publicPropertiesMap[key]
     let cssModule, globalProperties
     // public $xxx properties
@@ -311,6 +315,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
     ) {
       return cssModule
     } else if (ctx !== EMPTY_OBJ && hasOwn(ctx, key)) {
+      // 之所以不放在switch逻辑里，是因为用户属性可能以$开头
       // user may set custom properties to `this` that start with `$`
       accessCache![key] = AccessTypes.CONTEXT
       return ctx[key]
@@ -382,6 +387,7 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
           value
         })
       } else {
+        // 对实例设置新的属性，实际上是放在instance.ctx中
         ctx[key] = value
       }
     }
