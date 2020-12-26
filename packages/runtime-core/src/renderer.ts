@@ -1583,6 +1583,7 @@ function baseCreateRenderer(
         hostSetElementText(container, c2 as string)
       }
     } else {
+      // 新节点只有两种可能，数组或者null
       if (prevShapeFlag & ShapeFlags.ARRAY_CHILDREN) {
         // prev children was array
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
@@ -1602,13 +1603,17 @@ function baseCreateRenderer(
           unmountChildren(c1 as VNode[], parentComponent, parentSuspense, true)
         }
       } else {
+        // 这个else分支中，旧children只能是字符串或者空（新节点只能是数组或者空）
         // prev children was text OR null
         // new children is array OR null
         if (prevShapeFlag & ShapeFlags.TEXT_CHILDREN) {
+          // 旧节点是字符串，则先将字符串清空
           hostSetElementText(container, '')
         }
         // mount new if array
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+          // 新节点是数组，则挂载
+          // 是空，则啥也不做，因为旧的字符串已经被清空了
           mountChildren(
             c2 as VNodeArrayChildren,
             container,
@@ -1692,18 +1697,22 @@ function baseCreateRenderer(
   ) => {
     let i = 0
     const l2 = c2.length
+    // 旧数组最后一个元素下标
     let e1 = c1.length - 1 // prev ending index
+    // 新数组最后一个元素下标
     let e2 = l2 - 1 // next ending index
 
     // 1. sync from start
     // (a b) c
     // (a b) d e
+    // 从数组起始位置开始依次往后比较
     while (i <= e1 && i <= e2) {
       const n1 = c1[i]
       const n2 = (c2[i] = optimized
         ? cloneIfMounted(c2[i] as VNode)
         : normalizeVNode(c2[i]))
       if (isSameVNodeType(n1, n2)) {
+        // 同样的类型，则patch这两个孩子
         patch(
           n1,
           n2,
@@ -1715,6 +1724,7 @@ function baseCreateRenderer(
           optimized
         )
       } else {
+        // 类型不同则挑出循环，跳出循环后，i的位置是还未比较的孩子
         break
       }
       i++
@@ -1740,6 +1750,7 @@ function baseCreateRenderer(
           optimized
         )
       } else {
+        // 跳出循环后，e1和e2的位置是还未经过比较的孩子
         break
       }
       e1--
@@ -1753,8 +1764,8 @@ function baseCreateRenderer(
     // (a b)
     // c (a b)
     // i = 0, e1 = -1, e2 = 0
-    if (i > e1) {
-      if (i <= e2) {
+    if (i > e1) { // 表明旧数组已经对比完成
+      if (i <= e2) { // 新数组有剩余
         const nextPos = e2 + 1
         const anchor = nextPos < l2 ? (c2[nextPos] as VNode).el : parentAnchor
         while (i <= e2) {
@@ -1781,7 +1792,7 @@ function baseCreateRenderer(
     // a (b c)
     // (b c)
     // i = 0, e1 = 0, e2 = -1
-    else if (i > e2) {
+    else if (i > e2) { // 新数组对比完成，老数组有剩余，卸载老数组中没有对比的孩子
       while (i <= e1) {
         unmount(c1[i], parentComponent, parentSuspense, true)
         i++
@@ -1798,8 +1809,9 @@ function baseCreateRenderer(
 
       // 5.1 build key:index map for newChildren
       const keyToNewIndexMap: Map<string | number, number> = new Map()
+      // 遍历新数组的剩余节点，建立节点key到下标的映射，没有key的节点则不会在映射中
       for (i = s2; i <= e2; i++) {
-        const nextChild = (c2[i] = optimized
+        const nextChild = (c2[i] = optimized // 下一个新节点
           ? cloneIfMounted(c2[i] as VNode)
           : normalizeVNode(c2[i]))
         if (nextChild.key != null) {
@@ -1810,7 +1822,7 @@ function baseCreateRenderer(
               `Make sure keys are unique.`
             )
           }
-          keyToNewIndexMap.set(nextChild.key, i)
+          keyToNewIndexMap.set(nextChild.key, i) // key为键名，下标为健值
         }
       }
 
@@ -1818,7 +1830,7 @@ function baseCreateRenderer(
       // matching nodes & remove nodes that are no longer present
       let j
       let patched = 0
-      const toBePatched = e2 - s2 + 1
+      const toBePatched = e2 - s2 + 1 // 新数组中等待对比的孩子数
       let moved = false
       // used to track whether any node has moved
       let maxNewIndexSoFar = 0
@@ -1835,16 +1847,20 @@ function baseCreateRenderer(
         if (patched >= toBePatched) {
           // all new children have been patched so this can only be a removal
           unmount(prevChild, parentComponent, parentSuspense, true)
+          // 新数组所有节点都已经对比了，但是旧数组还有剩余，循环不能断，要继续遍历卸载节点
           continue
         }
         let newIndex
         if (prevChild.key != null) {
+          // 通过旧孩子节点的key，获取相同key节点在数组中的位置
           newIndex = keyToNewIndexMap.get(prevChild.key)
         } else {
           // key-less node, try to locate a key-less node of the same type
           for (j = s2; j <= e2; j++) {
             if (
+              // 等于零表明新数组中这个位置的节点还没有比较更新过
               newIndexToOldIndexMap[j - s2] === 0 &&
+              // 同时拥有相同的节点类型
               isSameVNodeType(prevChild, c2[j] as VNode)
             ) {
               newIndex = j
@@ -1853,11 +1869,14 @@ function baseCreateRenderer(
           }
         }
         if (newIndex === undefined) {
+          // 没有找到相同的key，也没有找到同类型的节点，直接卸载旧孩子节点
           unmount(prevChild, parentComponent, parentSuspense, true)
         } else {
+          // newIndex - s2 新数组中，从s2开始第n个暂未对比的节点，下标从0开始
+          // i + 1表示旧数组中的第m个孩子，下标从1开始
           newIndexToOldIndexMap[newIndex - s2] = i + 1
           if (newIndex >= maxNewIndexSoFar) {
-            maxNewIndexSoFar = newIndex
+            maxNewIndexSoFar = newIndex // 记录新数组中，当前已经对比的最大下标，只是用来更新moved标志
           } else {
             moved = true
           }
