@@ -86,9 +86,11 @@ function createReactiveEffect<T = any>(
     if (!effect.active) {
       return options.scheduler ? undefined : fn()
     }
-    // TODO: 为什么要用栈
+    // 用栈来处理effect函数嵌套的问题，防止依赖收集出现错误
     if (!effectStack.includes(effect)) {
-      // TODO: 为什么要清空依赖
+      // 上一次收集的依赖函数列表，在经过一次渲染后，在下一次可能就不需要执行了，比如元素被删除（if-else）
+      // 所以在副作用函数执行前，先将自己从之前收集的依赖列表中统统删除，然后在执行fn的时候会重新收集
+      // 所以依赖收集不是收集完了就一直使用下去，而是随着每次副作用函数的执行不断重新收集的
       cleanup(effect)
       try {
         enableTracking()

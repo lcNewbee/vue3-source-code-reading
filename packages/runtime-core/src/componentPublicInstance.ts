@@ -298,12 +298,12 @@ export const PublicInstanceProxyHandlers: ProxyHandler<any> = {
       }
     }
 
-    // 以$开头属性的值
+    // 以$开头属性的key，或者通过以上逻辑没有找到的key
     const publicGetter = publicPropertiesMap[key]
     let cssModule, globalProperties
     // public $xxx properties
     if (publicGetter) {
-      if (key === '$attrs') {
+      if (key === '$attrs') { // 对$attrs做了追踪，其他则仅仅返回值
         track(instance, TrackOpTypes.GET, key)
         __DEV__ && markAttrsAccessed()
       }

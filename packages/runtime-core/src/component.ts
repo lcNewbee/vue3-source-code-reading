@@ -569,7 +569,7 @@ function setupStatefulComponent(
       setup,
       instance,
       ErrorCodes.SETUP_FUNCTION,
-      // 这个数组时setup的参数，所以setup第一个参数是组件实例的属性，第二个参数是包含下面属性的对象
+      // 这个数组是setup的参数，所以setup第一个参数是组件实例的属性，第二个参数是包含下面属性的对象
       // attrs: instance.attrs,
       // slots: instance.slots,
       // emit: instance.emit
