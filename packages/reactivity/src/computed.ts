@@ -48,6 +48,7 @@ class ComputedRefImpl<T> {
   }
 
   get value() {
+    // 组件渲染函数获取computed值，_dirty默认为true
     if (this._dirty) {
       this._value = this.effect()
       this._dirty = false

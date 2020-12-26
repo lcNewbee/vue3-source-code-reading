@@ -102,7 +102,7 @@ function createGetter(isReadonly = false, shallow = false) {
     }
 
     if (!isReadonly) {
-      // 追踪key值变化
+      // 不是只读，追踪key值变化，只读对象不追踪值的变化
       track(target, TrackOpTypes.GET, key)
     }
 
@@ -121,6 +121,7 @@ function createGetter(isReadonly = false, shallow = false) {
       // here to avoid invalid value warning. Also need to lazy access readonly
       // and reactive here to avoid circular dependency.
       // 只有获取下层属性的时候，才会将子属性变成响应式的，而不是无脑递归
+      // 只读对象是”浅层“只读，对于嵌套对象，在获取值的时候也要将其变为只读
       return isReadonly ? readonly(res) : reactive(res)
     }
 
@@ -200,7 +201,7 @@ export const mutableHandlers: ProxyHandler<object> = {
 }
 
 export const readonlyHandlers: ProxyHandler<object> = {
-  get: readonlyGet,
+  get: readonlyGet, // 获取值，同时，如果值是对象，则将该对象也变为只读
   set(target, key) {
     if (__DEV__) {
       console.warn(

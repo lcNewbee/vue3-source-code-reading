@@ -59,8 +59,12 @@ export const createApp = ((...args) => {
 
   const { mount } = app
   app.mount = (containerOrSelector: Element | string): any => {
+    // 字符串则找到对应的dom节点，dom对象则直接返回
+    // tip: 所以app.mount函数既可以接受dom对象，也可以是document.querySelector能查找的字符串
     const container = normalizeContainer(containerOrSelector)
     if (!container) return
+    // _component是createApp函数中给app赋予的属性，其实就是createApp接收的第一个参数
+    // 可以是组件配置，也可以是组件函数
     const component = app._component
     if (!isFunction(component) && !component.render && !component.template) {
       component.template = container.innerHTML

@@ -430,6 +430,7 @@ function baseCreateRenderer(
     initFeatureFlags()
   }
 
+  // 传入和平台相关的函数，最终用在patch的函数逻辑里
   const {
     insert: hostInsert,
     remove: hostRemove,
@@ -721,6 +722,7 @@ function baseCreateRenderer(
       // only do this in production since cloned trees cannot be HMR updated.
       el = vnode.el = hostCloneNode(vnode.el)
     } else {
+      // 带有host，表示和平台相关
       el = vnode.el = hostCreateElement(
         vnode.type as string,
         isSVG,
@@ -2231,9 +2233,9 @@ function baseCreateRenderer(
   }
 
   return {
-    render,
+    render, // 对比前后虚拟DOM，删除或者更新DOM（unmount、patch）
     hydrate,
-    createApp: createAppAPI(render, hydrate)
+    createApp: createAppAPI(render, hydrate) // 返回app实例对象
   }
 }
 

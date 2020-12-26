@@ -78,10 +78,13 @@ export function baseParse(
   content: string,
   options: ParserOptions = {}
 ): RootNode {
+  // 返回一个解析对象，在整个解析过程中不断在维护这个对象
   const context = createParserContext(content, options)
+  // 获取当前解析的位置
   const start = getCursor(context)
+  // 返回的就是整个模板解析后的ast树（不过后面还有一次对该ast树的转换修改）
   return createRoot(
-    parseChildren(context, TextModes.DATA, []),
+    parseChildren(context, TextModes.DATA, []), // 孩子节点列表
     getSelection(context, start)
   )
 }
@@ -110,9 +113,9 @@ function createParserContext(
 function parseChildren(
   context: ParserContext,
   mode: TextModes,
-  ancestors: ElementNode[]
+  ancestors: ElementNode[] // 父级元素栈
 ): TemplateChildNode[] {
-  const parent = last(ancestors)
+  const parent = last(ancestors) // 最近的父元素
   const ns = parent ? parent.ns : Namespaces.HTML
   const nodes: TemplateChildNode[] = []
 
@@ -121,6 +124,17 @@ function parseChildren(
     const s = context.source
     let node: TemplateChildNode | TemplateChildNode[] | undefined = undefined
 
+    /**
+     * 1. 没有v-pre指令，以{{开头，进入插值解析parseInterpolation
+     * 2. 以<开头
+     * 2.1 以<!--开头，进入注释解析parseComment
+     * 2.2 <!DOCTYPE开头，parseBogusComment
+     * 2.3 <![CDATA['开头，parseCDATA
+     * 3. 以</，报错及做相关处理，然后继续解析
+     * 4. 以<和字母开头，解析元素parseElement
+     * 5. 以<?开头
+     * 6. 其他
+     */
     if (mode === TextModes.DATA || mode === TextModes.RCDATA) {
       if (!context.inVPre && startsWith(s, context.options.delimiters[0])) {
         // '{{'
@@ -181,6 +195,7 @@ function parseChildren(
         }
       }
     }
+    // 经过以上过程node仍然为空，则进行文本解析
     if (!node) {
       node = parseText(context, mode)
     }
@@ -252,6 +267,7 @@ function parseChildren(
   return removedWhitespace ? nodes.filter(Boolean) : nodes
 }
 
+// 如果是文本节点，则将文本作为父级节点的content，否则直接push进nodes数组
 function pushNode(nodes: TemplateChildNode[], node: TemplateChildNode): void {
   if (node.type === NodeTypes.TEXT) {
     const prev = last(nodes)
@@ -281,6 +297,7 @@ function parseCDATA(
   __TEST__ && assert(startsWith(context.source, '<![CDATA['))
 
   advanceBy(context, 9)
+  // 实际上最终走的是parseText的逻辑，将CDDATA里面的内容当做text处理
   const nodes = parseChildren(context, TextModes.CDATA, ancestors)
   if (context.source.length === 0) {
     emitError(context, ErrorCodes.EOF_IN_CDATA)
@@ -378,6 +395,7 @@ function parseElement(
   // Children.
   ancestors.push(element)
   const mode = context.options.getTextMode(element, parent)
+  // 递归
   const children = parseChildren(context, mode, ancestors)
   ancestors.pop()
 
@@ -433,15 +451,15 @@ function parseTag(
   // Tag open.
   const start = getCursor(context)
   const match = /^<\/?([a-z][^\t\r\n\f />]*)/i.exec(context.source)!
-  const tag = match[1]
+  const tag = match[1] // 第一个分组，这里是标签名
   const ns = context.options.getNamespace(tag, parent)
 
-  advanceBy(context, match[0].length)
-  advanceSpaces(context)
+  advanceBy(context, match[0].length) // 跳过匹配到的内容
+  advanceSpaces(context) // 跳过空格
 
   // save current state in case we need to re-parse attributes with v-pre
-  const cursor = getCursor(context)
-  const currentSource = context.source
+  const cursor = getCursor(context) // 记录当前位置（跳过起始标签和空格的位置
+  const currentSource = context.source // 记录当前等待解析的内容
 
   // Attributes.
   let props = parseAttributes(context, type)
@@ -532,7 +550,7 @@ function parseAttributes(
     !startsWith(context.source, '>') &&
     !startsWith(context.source, '/>')
   ) {
-    if (startsWith(context.source, '/')) {
+    if (startsWith(context.source, '/')) { // 斜线没有和右尖括号在一起，报错并忽略该符号和之后的空白
       emitError(context, ErrorCodes.UNEXPECTED_SOLIDUS_IN_TAG)
       advanceBy(context, 1)
       advanceSpaces(context)
@@ -598,9 +616,9 @@ function parseAttribute(
     | undefined = undefined
 
   if (/^[\t\r\n\f ]*=/.test(context.source)) {
-    advanceSpaces(context)
-    advanceBy(context, 1)
-    advanceSpaces(context)
+    advanceSpaces(context) // 跳过空格
+    advanceBy(context, 1) // 跳过=
+    advanceSpaces(context) // 跳过空格
     value = parseAttributeValue(context)
     if (!value) {
       emitError(context, ErrorCodes.MISSING_ATTRIBUTE_VALUE)
@@ -608,12 +626,13 @@ function parseAttribute(
   }
   const loc = getSelection(context, start)
 
-  if (!context.inVPre && /^(v-|:|@|#)/.test(name)) {
+  if (!context.inVPre && /^(v-|:|@|#)/.test(name)) { // 解析指令
+    // ?:表示只分组不捕获，$1将是([a-z0-9-]+)的匹配结果
     const match = /(?:^v-([a-z0-9-]+))?(?:(?::|^@|^#)(\[[^\]]+\]|[^\.]+))?(.+)?$/i.exec(
       name
     )!
 
-    const dirName =
+    const dirName = // 指令类型
       match[1] ||
       (startsWith(name, ':') ? 'bind' : startsWith(name, '@') ? 'on' : 'slot')
 
@@ -635,6 +654,7 @@ function parseAttribute(
       let isStatic = true
 
       if (content.startsWith('[')) {
+        // 支持slot动态语法：v-slot:[dynamicSlotName]
         isStatic = false
 
         if (!content.endsWith(']')) {
@@ -718,7 +738,7 @@ function parseAttributeValue(
     advanceBy(context, 1)
 
     const endIndex = context.source.indexOf(quote)
-    if (endIndex === -1) {
+    if (endIndex === -1) { // 没有找到结束引号，就直接把余下的内容全部当成文本解析
       content = parseTextData(
         context,
         context.source.length,
@@ -743,6 +763,7 @@ function parseAttributeValue(
         m.index
       )
     }
+    // 
     content = parseTextData(context, match[0].length, TextModes.ATTRIBUTE_VALUE)
   }
 
@@ -763,15 +784,15 @@ function parseInterpolation(
   }
 
   const start = getCursor(context)
-  advanceBy(context, open.length)
+  advanceBy(context, open.length) // 更新插值开始标志的位置信息，并将插值开始符号从source中删除
   const innerStart = getCursor(context)
   const innerEnd = getCursor(context)
-  const rawContentLength = closeIndex - open.length
-  const rawContent = context.source.slice(0, rawContentLength)
-  const preTrimContent = parseTextData(context, rawContentLength, mode)
+  const rawContentLength = closeIndex - open.length // 获取插值符号之间的内容长度
+  const rawContent = context.source.slice(0, rawContentLength) // 获取内容
+  const preTrimContent = parseTextData(context, rawContentLength, mode) // 获取转化后的内容，并更新位置信息，且将内容从source中删除
   const content = preTrimContent.trim()
   const startOffset = preTrimContent.indexOf(content)
-  if (startOffset > 0) {
+  if (startOffset > 0) { // 前面有空格
     advancePositionWithMutation(innerStart, rawContent, startOffset)
   }
   const endOffset =
@@ -787,9 +808,9 @@ function parseInterpolation(
       // Set `isConstant` to false by default and will decide in transformExpression
       isConstant: false,
       content,
-      loc: getSelection(context, innerStart, innerEnd)
+      loc: getSelection(context, innerStart, innerEnd) // 内容的位置信息
     },
-    loc: getSelection(context, start)
+    loc: getSelection(context, start) // 包含插值标志及内容的位置信息
   }
 }
 
@@ -825,7 +846,7 @@ function parseText(context: ParserContext, mode: TextModes): TextNode {
  * Get text data with a given length from the current location.
  * This translates HTML entities in the text data.
  */
-function parseTextData(
+function  parseTextData(
   context: ParserContext,
   length: number,
   mode: TextModes
@@ -857,6 +878,7 @@ function getSelection(
   start: Position,
   end?: Position
 ): SourceLocation {
+  // 经过parseChildren的解析，当前位置已经被修改到所有孩子节点末尾的位置
   end = end || getCursor(context)
   return {
     start,
@@ -873,6 +895,7 @@ function startsWith(source: string, searchString: string): boolean {
   return source.startsWith(searchString)
 }
 
+// 更新位置信息，并将当前内容从source中删除
 function advanceBy(context: ParserContext, numberOfCharacters: number): void {
   const { source } = context
   __TEST__ && assert(numberOfCharacters <= source.length)

@@ -26,8 +26,6 @@
     "directory": "test-dts"
   },
   "gitHooks": {
-    "pre-commit": "ls-lint && lint-staged",
-    "commit-msg": "node scripts/verifyCommit.js"
   },
   "lint-staged": {
     "*.js": [

@@ -86,7 +86,9 @@ function createReactiveEffect<T = any>(
     if (!effect.active) {
       return options.scheduler ? undefined : fn()
     }
+    // TODO: 为什么要用栈
     if (!effectStack.includes(effect)) {
+      // TODO: 为什么要清空依赖
       cleanup(effect)
       try {
         enableTracking()
@@ -111,12 +113,16 @@ function createReactiveEffect<T = any>(
 }
 
 function cleanup(effect: ReactiveEffect) {
-  const { deps } = effect
+  const { deps } = effect // deps是数组，数组项为effect的Set集合，
   if (deps.length) {
     for (let i = 0; i < deps.length; i++) {
+      // 从集合中将自身删除
       deps[i].delete(effect)
     }
+    // 将自身的deps清空
     deps.length = 0
+
+    // clean完成后等于说是任何变量的修改都将不会执行该effect
   }
 }
 
